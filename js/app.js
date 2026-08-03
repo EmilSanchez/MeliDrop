@@ -25,8 +25,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const navList = document.getElementById("navList");
   const content = document.getElementById("content");
-  const topbarTitleText = document.getElementById("topbarTitleText");
-  const topbarSubtitle = document.getElementById("topbarSubtitle");
 
   MODULES.forEach((m, i) => {
     const moduleData = window.ModuleContent && window.ModuleContent[m.id];
@@ -66,10 +64,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     document.querySelectorAll(".module").forEach(s => s.classList.remove("active"));
     document.getElementById("module-" + id).classList.add("active");
-
-    const mod = MODULES.find(m => m.id === id);
-    topbarTitleText.textContent = mod.name;
-    topbarSubtitle.textContent = mod.desc;
 
     const moduleData = window.ModuleContent && window.ModuleContent[id];
     if (moduleData && typeof moduleData.init === "function") {

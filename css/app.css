@@ -131,52 +131,6 @@ body{
   min-width:0;
 }
 
-.topbar{
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--border);
-  padding:14px 26px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:20px;
-  flex-wrap:wrap;
-}
-
-.topbar-title{
-  font-size:18px;
-  font-weight:700;
-  color: var(--text-dark);
-  display:flex;
-  flex-direction:column;
-}
-
-.topbar-subtitle{
-  font-size:11.5px;
-  font-weight:400;
-  color: var(--text-muted);
-  margin-top:2px;
-}
-
-.store-chip{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  border:2px solid var(--gold);
-  border-radius:10px;
-  padding:8px 16px;
-  background:#fffdf7;
-}
-
-.store-chip .avatar-sm{
-  width:34px;
-  height:34px;
-  border-radius:50%;
-  background: var(--teal);
-}
-
-.store-chip .store-name{ font-size:11px; color:var(--text-muted); }
-.store-chip .store-name b{ display:block; font-size:13px; color:var(--text-dark); }
-
 .content{
   padding:24px 26px;
   flex:1;
@@ -242,4 +196,241 @@ body{
   font-size:13px;
   max-width:420px;
   margin:0 auto;
+}
+
+/* ==================== RESUMEN: tarjetas de estadísticas ==================== */
+.stats-grid{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap:16px;
+  margin-bottom:20px;
+}
+
+.stat-card{
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius:10px;
+  padding:16px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+
+.stat-icon{
+  width:46px;
+  height:46px;
+  border-radius:10px;
+  flex-shrink:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+}
+
+.stat-icon-navy{ background: var(--navy); }
+.stat-icon-teal{ background: var(--teal); }
+.stat-icon-gold{ background: var(--gold); }
+.stat-icon-red{ background: var(--red); }
+
+.stat-info{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+}
+
+.stat-label{
+  font-size:10.5px;
+  font-weight:700;
+  letter-spacing:.03em;
+  color: var(--text-muted);
+}
+
+.stat-value{
+  font-size:19px;
+  font-weight:700;
+  color: var(--text-dark);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* ==================== RESUMEN: filtro de estado ==================== */
+.filter-card{
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius:10px;
+  padding:20px;
+  margin-bottom:20px;
+}
+
+.filter-card h3{
+  font-size:14px;
+  font-weight:700;
+  color: var(--text-dark);
+  margin-bottom:12px;
+}
+
+.filter-card select{
+  width:100%;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  font-size:13.5px;
+  color: var(--text-dark);
+  background: var(--card-bg);
+  outline:none;
+}
+
+.filter-card select:focus{
+  border-color: var(--blue-accent);
+}
+
+/* ==================== RESUMEN: tarjetas de tienda ==================== */
+.stores-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap:16px;
+}
+
+.store-card{
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius:10px;
+  padding:20px;
+}
+
+.store-card-header{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:18px;
+}
+
+.store-avatar{
+  width:48px;
+  height:48px;
+  border-radius:50%;
+  color:#fff;
+  font-weight:700;
+  font-size:18px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+}
+
+.store-card-name{
+  font-size:16px;
+  font-weight:700;
+  color: var(--text-dark);
+}
+
+.store-card-status{
+  font-size:12px;
+  font-weight:600;
+}
+
+.status-activa{ color: var(--green); }
+.status-inactiva{ color: var(--red); }
+
+.store-card-body{
+  display:flex;
+  gap:24px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:14px;
+  flex-wrap:wrap;
+}
+
+.store-reputation{
+  flex:1;
+  min-width:150px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.rep-title{
+  font-size:13px;
+  font-weight:700;
+  color: var(--text-dark);
+  margin-bottom:4px;
+}
+
+.rep-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  font-size:12.5px;
+  color: var(--text-muted);
+}
+
+.rep-dot{
+  width:26px;
+  height:6px;
+  border-radius:999px;
+}
+
+.rep-dot-good{ background: var(--green); }
+.rep-dot-warn{ background: var(--gold); }
+.rep-dot-bad{ background: var(--red); }
+
+.store-sales{
+  flex:1;
+  min-width:150px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.sales-title{
+  font-size:13px;
+  font-weight:700;
+  color: var(--text-dark);
+}
+
+.sales-value{
+  font-size:22px;
+  font-weight:700;
+  color: var(--text-dark);
+}
+
+.sales-value small{
+  font-size:11px;
+  font-weight:400;
+  color: var(--text-muted);
+}
+
+.btn-infracciones{
+  margin-top:6px;
+  background: var(--navy);
+  color:#fff;
+  border:none;
+  border-radius:7px;
+  padding:9px 14px;
+  font-size:12.5px;
+  font-weight:600;
+  cursor:pointer;
+  transition: filter .15s ease;
+}
+
+.btn-infracciones:hover{ filter: brightness(1.15); }
+
+.store-membership{
+  background:#e8f7ef;
+  color: var(--green);
+  font-size:12px;
+  font-weight:700;
+  text-align:right;
+  padding:8px 14px;
+  border-radius:7px;
+}
+
+@media (max-width: 900px){
+  .stats-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+@media (max-width: 520px){
+  .stats-grid{ grid-template-columns: 1fr; }
 }
