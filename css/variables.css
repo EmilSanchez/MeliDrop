@@ -1,0 +1,26 @@
+/* ============================================================
+   variables.css
+   Paleta y tokens compartidos entre login.html y app.html
+   ============================================================ */
+:root{
+  --navy: #161b2e;
+  --navy-light: #1f2540;
+  --navy-hover: #262c4a;
+  --blue-accent: #2f6fed;
+  --bg: #eef1f6;
+  --card-bg: #ffffff;
+  --border: #e3e7ef;
+  --text-dark: #1c2233;
+  --text-muted: #8890a3;
+  --green: #1a9c6b;
+  --gold: #e8a13c;
+  --red: #e0524a;
+  --teal: #17a2a2;
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+
+body{
+  font-family: "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--text-dark);
+}

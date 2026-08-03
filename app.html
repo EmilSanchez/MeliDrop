@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestor de Tienda</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="avatar" id="userAvatar">A</div>
+      <div class="who">
+        <div class="name" id="userName">admin</div>
+        <div class="role">Administrador</div>
+      </div>
+      <button id="logoutBtn" class="logout-btn" title="Cerrar sesión">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <path d="M16 17l5-5-5-5"/>
+          <path d="M21 12H9"/>
+        </svg>
+      </button>
+    </div>
+
+    <ul class="nav-list" id="navList">
+      <!-- generado por js/app.js -->
+    </ul>
+
+    <div class="sidebar-footer">v0.3 &middot; Login y app separados</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">
+        <span id="topbarTitleText">Resumen</span>
+        <span class="topbar-subtitle" id="topbarSubtitle">Vista general de la tienda</span>
+      </div>
+      <div class="store-chip">
+        <div class="avatar-sm"></div>
+        <div class="store-name">TIENDA<b>EizthStore</b></div>
+      </div>
+    </div>
+
+    <div class="content" id="content">
+      <!-- generado por js/app.js -->
+    </div>
+  </div>
+
+</div>
+
+<!-- Configuración: lista de módulos e iconos -->
+<script src="js/config.js"></script>
+
+<!-- Contenido de cada módulo (uno por archivo) -->
+<script src="js/modules/resumen.js"></script>
+<script src="js/modules/precios.js"></script>
+<script src="js/modules/publicar.js"></script>
+<script src="js/modules/preventa.js"></script>
+<script src="js/modules/postventa.js"></script>
+<script src="js/modules/ventas.js"></script>
+<script src="js/modules/tracking.js"></script>
+<script src="js/modules/envios.js"></script>
+<script src="js/modules/ganancias.js"></script>
+<script src="js/modules/problemas.js"></script>
+<script src="js/modules/productos.js"></script>
+<script src="js/modules/extras.js"></script>
+
+<!-- Controlador principal de la app -->
+<script src="js/app.js"></script>
+
+</body>
+</html>
