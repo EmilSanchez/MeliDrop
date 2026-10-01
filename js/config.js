@@ -4,6 +4,12 @@
 // módulo del menú lateral sin tocar ningún otro archivo.
 // ============================================================
 
+// Config de conexión al backend. Cambia esta URL cuando el
+// backend quede desplegado (por ahora corre en local).
+window.APP_CONFIG = {
+  apiBaseUrl: "http://localhost:3001/api"
+};
+
 const MODULES = [
   { id: "resumen",    name: "Resumen",    desc: "Vista general de la tienda" },
   { id: "precios",    name: "Precios",    desc: "Gestión de precios de publicaciones" },

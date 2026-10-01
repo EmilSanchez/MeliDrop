@@ -8,7 +8,8 @@
 
 document.addEventListener("DOMContentLoaded", function () {
 
-  // Si no hay sesión iniciada, regresa al login.
+  // Si no se pasó por el login (TEMPORAL: solo diseño, no valida cuenta
+  // todavía), regresa al login.
   const user = sessionStorage.getItem("gestorTienda_user");
   if (!user) {
     window.location.href = "login.html";
@@ -20,6 +21,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById("logoutBtn").addEventListener("click", function () {
     sessionStorage.removeItem("gestorTienda_user");
+    Api.clearSession();
     window.location.href = "login.html";
   });
 
