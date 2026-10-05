@@ -116,17 +116,29 @@ window.ModuleContent.precios = {
     const newBtn = document.getElementById("newPackBtn");
     if (newBtn) {
       newBtn.addEventListener("click", async function () {
-        const nombre = window.prompt("Nombre del nuevo pack de precios (ej: \"Precios Electrónica\"):");
-        if (!nombre || !nombre.trim()) return;
-        try {
-          const nuevo = await Api.createPack(nombre.trim());
-          self._packs = await Api.listPacks();
-          self._currentPackId = nuevo.id;
-          self._currentPack = nuevo;
-          self._renderActiveTab();
-        } catch (err) {
-          alert(err.message);
-        }
+        const nuevo = await UI.prompt({
+          title: "Nuevo pack de precios",
+          description: "Arranca con los valores iniciales del sistema; después ajustas los tramos y cobros a tu gusto.",
+          label: "Nombre del pack",
+          placeholder: 'Ej: "Precios Electrónica"',
+          confirmText: "Crear pack",
+          busyText: "Creando…",
+          emptyMessage: "Escribe un nombre para el pack.",
+          validate: function (nombre) {
+            const existe = self._packs.some(function (p) {
+              return p.nombre.trim().toLowerCase() === nombre.toLowerCase();
+            });
+            return existe ? "Ya tienes un pack con ese nombre." : null;
+          },
+          submit: async function (nombre) {
+            const creado = await Api.createPack(nombre);
+            self._packs = await Api.listPacks();
+            self._currentPackId = creado.id;
+            self._currentPack = creado;
+            return creado;
+          }
+        });
+        if (nuevo) self._renderActiveTab();
       });
     }
   },
@@ -195,7 +207,10 @@ window.ModuleContent.precios = {
     const btn = document.getElementById("skuQuickBtn");
     if (btn) {
       btn.addEventListener("click", () => {
-        alert('Esto se activa cuando conectemos la búsqueda por ASIN/SKU de Amazon. Mientras tanto, usa la pestaña "Calcular Precio Manual".');
+        UI.alert({
+          title: "Búsqueda por SKU pendiente",
+          message: 'Esto se activa cuando conectemos la búsqueda de productos en Amazon. Mientras tanto, usa la pestaña "Calcular Precio Manual".'
+        });
       });
     }
     const shipBtn = document.getElementById("skuShippingBtn");
@@ -347,7 +362,7 @@ window.ModuleContent.precios = {
           btn.disabled = false;
         }, 1200);
       } catch (err) {
-        alert(err.message);
+        UI.alert({ title: "No se pudo guardar", message: err.message, tone: "danger" });
         btn.textContent = "Guardar";
         btn.disabled = false;
       }

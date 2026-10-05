@@ -42,9 +42,20 @@ function fullPack(packId) {
 
 // Listar packs del usuario (para el combo "Seleccione el Pack de Precios")
 router.get('/', (req, res) => {
-  const packs = db
-    .prepare('SELECT id, nombre, is_default, created_at, updated_at FROM price_packs WHERE user_id = ? ORDER BY created_at')
-    .all(req.userId);
+  const listar = () =>
+    db
+      .prepare('SELECT id, nombre, is_default, created_at, updated_at FROM price_packs WHERE user_id = ? ORDER BY created_at, id')
+      .all(req.userId);
+
+  let packs = listar();
+
+  // Un usuario nunca debe quedarse sin packs (cuenta creada a medias, base de
+  // datos restaurada, etc.): si no tiene ninguno, arranca con "Precios Generales".
+  if (packs.length === 0) {
+    createDefaultPack(req.userId);
+    packs = listar();
+  }
+
   res.json(packs);
 });
 
