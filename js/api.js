@@ -64,7 +64,12 @@ const Api = {
 
     if (!res.ok) {
       const msg = (data && data.error) || `Error ${res.status}`;
-      throw new Error(msg);
+      const error = new Error(msg);
+      if (data && data.code) error.code = data.code; // ej: PESO_EXCEDIDO
+      if (data && data.maxLibras) error.maxLibras = data.maxLibras;
+      if (data && data.pesoLbs) error.pesoLbs = data.pesoLbs;
+      if (data && data.producto) error.producto = data.producto;
+      throw error;
     }
 
     return data;
@@ -110,11 +115,9 @@ const Api = {
   saveProfitTiers(packId, tiers) {
     return this.request(`/price-packs/${packId}/profit-tiers`, { method: "PUT", body: { tiers } });
   },
-  saveShippingTiers(packId, variante, tiers) {
-    return this.request(`/price-packs/${packId}/shipping-tiers`, {
-      method: "PUT",
-      body: { variante, tiers },
-    });
+  // logistica: "aguachica" | "servientrega"; data: { seguro_porcentaje, seguro_minimo_usd, rates:[{libras,total_usd}] }
+  saveLogistics(packId, logistica, data) {
+    return this.request(`/price-packs/${packId}/logistics/${logistica}`, { method: "PUT", body: data });
   },
   saveTaxTiers(packId, tiers) {
     return this.request(`/price-packs/${packId}/tax-tiers`, { method: "PUT", body: { tiers } });
@@ -127,10 +130,15 @@ const Api = {
   },
 
   // ---------------- Cálculo ----------------
-  calcularPrecio(packId, costoUsd, pesoLbs, envioVariante) {
+  // Solo con el ASIN: el backend trae costo y peso de Amazon
+  calcularPorSku(packId, asin) {
+    return this.request("/calcular-precio/sku", { method: "POST", body: { packId, asin } });
+  },
+
+  calcularPrecio(packId, costoUsd, pesoLbs) {
     return this.request("/calcular-precio", {
       method: "POST",
-      body: { packId, costoUsd, pesoLbs, envioVariante },
+      body: { packId, costoUsd, pesoLbs },
     });
   },
 };

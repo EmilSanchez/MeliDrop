@@ -11,4 +11,7 @@ db.pragma('foreign_keys = ON');
 const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 db.exec(schema);
 
+require('./seedLogistics').seedAllPacks(db);
+require('./migrateExtras').migrateExtras(db);
+
 module.exports = db;

@@ -1,47 +1,81 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { calcularPrecioPorCosto } = require('../pricing/calcular');
+const { calcularPrecio } = require('../pricing/calcular');
+const { fullPack } = require('./pricePacks.helpers');
+const { getTrm } = require('../pricing/trm');
+const { getProducto } = require('../amazon');
 
 const router = express.Router();
 router.use(requireAuth);
 
-function fullPack(packId) {
-  const pack = db.prepare('SELECT * FROM price_packs WHERE id = ?').get(packId);
-  if (!pack) return null;
-  return {
-    ...pack,
-    profit_tiers: db.prepare('SELECT * FROM profit_tiers WHERE pack_id = ? ORDER BY posicion').all(packId),
-    shipping_tiers_mercado_envios: db
-      .prepare("SELECT * FROM shipping_tiers WHERE pack_id = ? AND variante = 'mercado_envios' ORDER BY posicion")
-      .all(packId),
-    shipping_tiers_custom: db
-      .prepare("SELECT * FROM shipping_tiers WHERE pack_id = ? AND variante = 'custom' ORDER BY posicion")
-      .all(packId),
-    tax_tiers: db.prepare('SELECT * FROM tax_tiers WHERE pack_id = ? ORDER BY posicion').all(packId),
-    extra_charges: db.prepare('SELECT * FROM extra_charges WHERE pack_id = ? ORDER BY posicion').all(packId),
-  };
-}
-
 // POST /api/calcular-precio
-// body: { packId, costoUsd, pesoLbs, envioVariante }
-// (Más adelante, cuando el scraping de Amazon esté listo, costoUsd/pesoLbs
-// vendrán de ahí en vez de escribirse a mano.)
-router.post('/', (req, res) => {
-  const { packId, costoUsd, pesoLbs, envioVariante } = req.body;
+// body: { packId, costoUsd, pesoLbs }
+// Devuelve un resultado por logística (Aguachica y Servientrega).
+router.post('/', async (req, res) => {
+  const { packId, costoUsd, pesoLbs } = req.body;
 
-  if (!packId || costoUsd == null || pesoLbs == null) {
-    return res.status(400).json({ error: 'packId, costoUsd y pesoLbs son obligatorios.' });
+  if (!packId || !Number.isFinite(costoUsd) || !Number.isFinite(pesoLbs) || costoUsd < 0 || pesoLbs < 0) {
+    return res.status(400).json({ error: 'packId, costoUsd y pesoLbs son obligatorios (números válidos).' });
   }
 
   const pack = db.prepare('SELECT * FROM price_packs WHERE id = ? AND user_id = ?').get(packId, req.userId);
   if (!pack) return res.status(404).json({ error: 'Pack no encontrado.' });
 
   try {
-    const resultado = calcularPrecioPorCosto(fullPack(pack.id), { costoUsd, pesoLbs, envioVariante });
-    res.json(resultado);
+    const completo = fullPack(pack.id);
+    const respaldo = (completo.extra_charges.find((c) => c.nombre === 'Dolar de respaldo COP') || {}).valor || 0;
+    const trm = await getTrm(respaldo);
+    if (!(trm.valor > 0)) {
+      return res.status(422).json({ error: 'No se pudo obtener el dólar. Configura "Dolar de respaldo COP" en Cobros Extras.' });
+    }
+    res.json(calcularPrecio(completo, { costoUsd, pesoLbs }, trm));
   } catch (err) {
-    res.status(422).json({ error: err.message });
+    res.status(422).json({ error: err.message, code: err.code, maxLibras: err.maxLibras, pesoLbs: err.pesoLbs });
+  }
+});
+
+// POST /api/calcular-precio/sku
+// body: { packId, asin }  -> trae costo y peso de Amazon y calcula
+router.post('/sku', async (req, res) => {
+  const { packId } = req.body;
+  const asin = String(req.body.asin || '').trim().toUpperCase();
+
+  if (!packId || !/^[A-Z0-9]{6,20}$/.test(asin)) {
+    return res.status(400).json({ error: 'packId y un SKU/ASIN válido son obligatorios.' });
+  }
+  const pack = db.prepare('SELECT * FROM price_packs WHERE id = ? AND user_id = ?').get(packId, req.userId);
+  if (!pack) return res.status(404).json({ error: 'Pack no encontrado.' });
+
+  try {
+    const producto = await getProducto(asin);
+    if (!(producto.costoUsd > 0)) {
+      return res.status(422).json({
+        code: 'SIN_PRECIO',
+        error: 'Este producto no tiene un precio disponible en Amazon ahora mismo (puede estar agotado).',
+        producto,
+      });
+    }
+    if (!(producto.pesoLbs > 0)) {
+      return res.status(422).json({
+        code: 'SIN_PESO',
+        error: 'Amazon no informa el peso de este producto, por eso no se puede calcular el envío.',
+        producto,
+      });
+    }
+
+    const completo = fullPack(pack.id);
+    const respaldo = (completo.extra_charges.find((c) => c.nombre === 'Dolar de respaldo COP') || {}).valor || 0;
+    const trm = await getTrm(respaldo);
+    if (!(trm.valor > 0)) {
+      return res.status(422).json({ error: 'No se pudo obtener el dólar. Configura "Dolar de respaldo COP" en Cobros Extras.' });
+    }
+    res.json({
+      ...calcularPrecio(completo, { costoUsd: producto.costoUsd, pesoLbs: producto.pesoLbs }, trm),
+      producto,
+    });
+  } catch (err) {
+    res.status(422).json({ error: err.message, code: err.code, maxLibras: err.maxLibras, pesoLbs: err.pesoLbs });
   }
 });
 

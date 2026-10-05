@@ -12,7 +12,7 @@
 //     hay submit), o con null si el usuario cancela. Si submit()
 //     lanza un error, el modal queda abierto y lo muestra adentro.
 //
-//   UI.alert({ title, message, confirmText, tone: "info" | "danger" })
+//   UI.alert({ title, message, confirmText, tone: "info" | "warning" | "danger" })
 //     Modal de aviso con un solo botón. Devuelve una Promise que se
 //     resuelve al cerrarlo.
 //
@@ -34,7 +34,7 @@ const UI = (function () {
   function createModal(opts) {
     const titleId = "ui-modal-title-" + (++idCounter);
     const overlay = el("div", "ui-overlay");
-    const card = el("div", "ui-modal" + (opts.tone === "danger" ? " ui-modal-danger" : ""));
+    const card = el("div", "ui-modal" + (opts.tone === "danger" ? " ui-modal-danger" : opts.tone === "warning" ? " ui-modal-warning" : ""));
     card.setAttribute("role", "dialog");
     card.setAttribute("aria-modal", "true");
     card.setAttribute("aria-labelledby", titleId);

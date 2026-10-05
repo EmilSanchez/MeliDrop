@@ -1,7 +1,8 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { createDefaultPack } = require('./pricePacks.helpers');
+const { createDefaultPack, fullPack } = require('./pricePacks.helpers');
+const { LOGISTICAS, MAX_LIBRAS } = require('../pricing/logisticas');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -11,33 +12,6 @@ function getOwnedPack(packId, userId) {
   return db
     .prepare('SELECT * FROM price_packs WHERE id = ? AND user_id = ?')
     .get(packId, userId);
-}
-
-function fullPack(packId) {
-  const pack = db.prepare('SELECT * FROM price_packs WHERE id = ?').get(packId);
-  if (!pack) return null;
-  return {
-    ...pack,
-    profit_tiers: db
-      .prepare('SELECT * FROM profit_tiers WHERE pack_id = ? ORDER BY posicion')
-      .all(packId),
-    shipping_tiers_mercado_envios: db
-      .prepare(
-        "SELECT * FROM shipping_tiers WHERE pack_id = ? AND variante = 'mercado_envios' ORDER BY posicion"
-      )
-      .all(packId),
-    shipping_tiers_custom: db
-      .prepare(
-        "SELECT * FROM shipping_tiers WHERE pack_id = ? AND variante = 'custom' ORDER BY posicion"
-      )
-      .all(packId),
-    tax_tiers: db
-      .prepare('SELECT * FROM tax_tiers WHERE pack_id = ? ORDER BY posicion')
-      .all(packId),
-    extra_charges: db
-      .prepare('SELECT * FROM extra_charges WHERE pack_id = ? ORDER BY posicion')
-      .all(packId),
-  };
 }
 
 // Listar packs del usuario (para el combo "Seleccione el Pack de Precios")
@@ -102,34 +76,46 @@ router.put('/:id/profit-tiers', (req, res) => {
   res.json(fullPack(pack.id).profit_tiers);
 });
 
-// Guardar tramos de envío (variante = mercado_envios | custom)
-router.put('/:id/shipping-tiers', (req, res) => {
+// Guardar una logística: seguro + tarifa por libra (1..110)
+// body: { seguro_porcentaje, seguro_minimo_usd, rates: [{libras, total_usd}] }
+router.put('/:id/logistics/:logistica', (req, res) => {
   const pack = getOwnedPack(req.params.id, req.userId);
   if (!pack) return res.status(404).json({ error: 'Pack no encontrado.' });
 
-  const { variante, tiers } = req.body;
-  if (!['mercado_envios', 'custom'].includes(variante)) {
-    return res.status(400).json({ error: "variante debe ser 'mercado_envios' o 'custom'." });
+  const { logistica } = req.params;
+  if (!LOGISTICAS[logistica]) return res.status(400).json({ error: 'Logística no válida.' });
+
+  const { seguro_porcentaje, seguro_minimo_usd, rates } = req.body;
+  const num = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+  if (!num(seguro_porcentaje) || !num(seguro_minimo_usd)) {
+    return res.status(400).json({ error: 'El seguro debe ser un número mayor o igual a 0.' });
   }
-  if (!Array.isArray(tiers)) return res.status(400).json({ error: 'tiers debe ser un arreglo.' });
+  if (!Array.isArray(rates) || rates.length > MAX_LIBRAS) {
+    return res.status(400).json({ error: `rates debe ser un arreglo de hasta ${MAX_LIBRAS} filas.` });
+  }
+  const vistas = new Set();
+  for (const r of rates) {
+    if (!Number.isInteger(r.libras) || r.libras < 1 || r.libras > MAX_LIBRAS || vistas.has(r.libras)) {
+      return res.status(400).json({ error: `Las libras deben ser enteros únicos entre 1 y ${MAX_LIBRAS}.` });
+    }
+    if (!num(r.total_usd)) return res.status(400).json({ error: 'Cada total debe ser un número mayor o igual a 0.' });
+    vistas.add(r.libras);
+  }
 
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM shipping_tiers WHERE pack_id = ? AND variante = ?').run(pack.id, variante);
-    const insert = db.prepare(
-      'INSERT INTO shipping_tiers (pack_id, variante, peso_inicial, peso_limite, precio_usd, posicion) VALUES (?, ?, ?, ?, ?, ?)'
+  db.transaction(() => {
+    db.prepare(
+      `INSERT INTO logistics_settings (pack_id, logistica, seguro_porcentaje, seguro_minimo_usd) VALUES (?, ?, ?, ?)
+       ON CONFLICT(pack_id, logistica) DO UPDATE SET seguro_porcentaje = excluded.seguro_porcentaje, seguro_minimo_usd = excluded.seguro_minimo_usd`
+    ).run(pack.id, logistica, seguro_porcentaje, seguro_minimo_usd);
+    const upd = db.prepare(
+      `INSERT INTO logistics_rates (pack_id, logistica, libras, total_usd) VALUES (?, ?, ?, ?)
+       ON CONFLICT(pack_id, logistica, libras) DO UPDATE SET total_usd = excluded.total_usd`
     );
-    tiers.forEach((t, i) =>
-      insert.run(pack.id, variante, t.peso_inicial, t.peso_limite, t.precio_usd, i)
-    );
+    rates.forEach((r) => upd.run(pack.id, logistica, r.libras, r.total_usd));
     touchPack(pack.id);
-  });
-  tx();
+  })();
 
-  res.json(
-    db
-      .prepare('SELECT * FROM shipping_tiers WHERE pack_id = ? AND variante = ? ORDER BY posicion')
-      .all(pack.id, variante)
-  );
+  res.json(fullPack(pack.id).logistics[logistica]);
 });
 
 // Guardar tramos de impuestos nacionales por precio

@@ -3,7 +3,7 @@
 // Módulo: Precios
 // 3 pestañas: Calcular Precio (por SKU/ASIN, pendiente de la
 // integración con Amazon), Configuración Precios (tramos de
-// ganancia, envíos, impuestos y cobros extras, por Pack) y
+// ganancia, logísticas Aguachica/Servientrega, impuestos y cobros extras, por Pack) y
 // Calcular Precio Manual (costo + peso -> precio sugerido).
 // Todo lee y guarda contra el backend (Api, ver js/api.js).
 // ============================================================
@@ -17,7 +17,7 @@ window.ModuleContent.precios = {
   _currentPackId: null,
   _currentPack: null,
   _activeTab: "config", // 'sku' | 'config' | 'manual'
-  _activeConfig: "ganancia", // 'ganancia' | 'envios_me' | 'envios_custom' | 'impuestos' | 'extras'
+  _activeConfig: "ganancia", // 'ganancia' | 'aguachica' | 'servientrega' | 'impuestos' | 'extras'
 
   render: function () {
     return `
@@ -155,140 +155,91 @@ window.ModuleContent.precios = {
     }
 
     const pack = this._currentPack;
-    const configOptions = [
-      { id: "ganancia", label: "Porcentaje de ganancia por precio" },
-      { id: "envios_me", label: "Precios de Envíos por libra (Mercado Envíos)" },
-      { id: "envios_custom", label: "Precios de Envíos por libra (Custom)" },
-      { id: "impuestos", label: "Porcentajes de Impuestos nacionales por precio" },
-      { id: "extras", label: "Cobros Extras" },
-    ];
+    const configOptions = this._configOptions();
+    const active = configOptions.find((o) => o.id === this._activeConfig);
 
     content.innerHTML = `
-      ${this._renderPackSelector()}
+      <div class="config-layout">
+        <div class="config-side">
+          <div class="side-card">
+            ${this._renderPackSelector()}
+          </div>
 
-      <div class="config-card">
-        <div class="sku-calc-row">
-          <label class="field-inline">
-            <span>Calcular precio de venta por SKU</span>
-            <input type="text" id="skuQuickInput" placeholder="Ej: B0ABCD1234">
-          </label>
-          <button type="button" class="btn-primary" id="skuQuickBtn">Calcular</button>
-          <button type="button" class="btn-secondary" id="skuShippingBtn">Calculador de Envíos</button>
+          <div class="side-card">
+            <span class="side-title">Configuraciones de ${this._esc(pack.nombre)}</span>
+            <div class="config-nav" id="configNav">
+              ${configOptions.map((o) => `<button type="button" class="config-nav-btn ${o.id === this._activeConfig ? "active" : ""}" data-config="${o.id}">${o.label}</button>`).join("")}
+            </div>
+          </div>
         </div>
 
-        <label class="field-inline config-select-row">
-          <span>Configuraciones de Precios ${this._esc(pack.nombre)}</span>
-          <select id="configSelect">
-            ${configOptions.map((o) => `<option value="${o.id}" ${o.id === this._activeConfig ? "selected" : ""}>${o.label}</option>`).join("")}
-          </select>
-        </label>
-
-        <h3 class="config-section-title">${configOptions.find((o) => o.id === this._activeConfig).label}</h3>
-
-        <div id="configTableArea"></div>
+        <div class="config-card config-main">
+          <div class="config-main-head">
+            <h3 class="config-section-title">${active.label}</h3>
+            <button type="button" class="btn-primary tier-save-btn" id="tierSaveBtn">Guardar</button>
+          </div>
+          <div id="configTableArea"></div>
+        </div>
       </div>
     `;
 
     this._bindPackSelector();
-    this._bindSkuQuickCalc();
-
-    document.getElementById("configSelect").addEventListener("change", (e) => {
-      this._activeConfig = e.target.value;
+    document.getElementById("configNav").addEventListener("click", (e) => {
+      const btn = e.target.closest(".config-nav-btn");
+      if (!btn) return;
+      this._activeConfig = btn.dataset.config;
       this._renderConfigTab();
     });
 
     this._renderConfigTable();
+    this._bindTierSave(this._activeConfig);
   },
 
-  _bindSkuQuickCalc: function () {
-    // El cálculo automático por SKU/ASIN depende de la integración con Amazon
-    // (scraping o API), que todavía no está conectada. Por ahora el botón
-    // avisa esto en vez de fallar en silencio.
-    const btn = document.getElementById("skuQuickBtn");
-    if (btn) {
-      btn.addEventListener("click", () => {
-        UI.alert({
-          title: "Búsqueda por SKU pendiente",
-          message: 'Esto se activa cuando conectemos la búsqueda de productos en Amazon. Mientras tanto, usa la pestaña "Calcular Precio Manual".'
-        });
-      });
-    }
-    const shipBtn = document.getElementById("skuShippingBtn");
-    if (shipBtn) {
-      shipBtn.addEventListener("click", () => {
-        this._activeTab = "manual";
-        document.querySelectorAll(".price-tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === "manual"));
-        this._renderActiveTab();
-      });
-    }
+  _configOptions: function () {
+    return [
+      { id: "ganancia", label: "Porcentaje de ganancia por precio" },
+      { id: "aguachica", label: "Envío: Aguachica (CENTRIS)" },
+      { id: "servientrega", label: "Envío: Servientrega (GBX)" },
+      { id: "impuestos", label: "Impuestos nacionales por precio" },
+      { id: "extras", label: "Cobros Extras" },
+    ];
   },
 
   _renderConfigTable: function () {
     const area = document.getElementById("configTableArea");
     const pack = this._currentPack;
+    const kind = this._activeConfig;
 
-    if (this._activeConfig === "ganancia") {
-      area.innerHTML = this._tierTableHtml(pack.profit_tiers, {
-        col1: "Precio Inicial USD",
-        col2: "Precio Límite USD",
-        key1: "precio_inicial",
-        key2: "precio_limite",
-        valueKey: "porcentaje",
-        valueLabel: "Nuevo Porcentaje",
+    if (kind === "ganancia" || kind === "impuestos") {
+      area.innerHTML = this._tierTableHtml(kind === "ganancia" ? pack.profit_tiers : pack.tax_tiers, {
+        heads: ["Precio Inicial USD", "Precio Límite USD", "Porcentaje Actual", "Nuevo Porcentaje"],
       });
-      this._bindTierSave("ganancia");
-    } else if (this._activeConfig === "envios_me" || this._activeConfig === "envios_custom") {
-      const tiers = this._activeConfig === "envios_me" ? pack.shipping_tiers_mercado_envios : pack.shipping_tiers_custom;
-      area.innerHTML = this._tierTableHtml(tiers, {
-        col1: "Peso Inicial lbs",
-        col2: "Peso Límite lbs",
-        key1: "peso_inicial",
-        key2: "peso_limite",
-        valueKey: "precio_usd",
-        valueLabel: "Nuevo Precio",
-      });
-      this._bindTierSave(this._activeConfig);
-    } else if (this._activeConfig === "impuestos") {
-      area.innerHTML = this._tierTableHtml(pack.tax_tiers, {
-        col1: "Precio Inicial USD",
-        col2: "Precio Límite USD",
-        key1: "precio_inicial",
-        key2: "precio_limite",
-        valueKey: "porcentaje",
-        valueLabel: "Nuevo Porcentaje",
-      });
-      this._bindTierSave("impuestos");
-    } else if (this._activeConfig === "extras") {
+    } else if (kind === "extras") {
       area.innerHTML = this._extraChargesHtml(pack.extra_charges);
-      this._bindTierSave("extras");
+    } else {
+      area.innerHTML = this._logisticsHtml(kind, pack.logistics[kind]);
     }
   },
 
-  // Tabla genérica de tramos [inicial, limite, valor-actual, valor-nuevo-editable]
+  // Tabla de tramos: 3 columnas de solo lectura (actuales) + 1 editable (nuevo valor)
   _tierTableHtml: function (tiers, cfg) {
     const rows = tiers
       .map(
         (t, i) => `
-        <div class="tier-row" data-index="${i}">
-          <input type="number" step="any" class="tier-cell tier-readonly" value="${t[cfg.key1]}" data-field="${cfg.key1}">
-          <input type="number" step="any" class="tier-cell tier-readonly" value="${t[cfg.key2]}" data-field="${cfg.key2}">
-          <input type="number" step="any" class="tier-cell tier-readonly" value="${t[cfg.valueKey]}" disabled>
-          <input type="number" step="any" class="tier-cell tier-new" value="${t[cfg.valueKey]}" data-field="${cfg.valueKey}">
+        <div class="tier-row tier-4" data-index="${i}">
+          <input type="number" class="tier-cell tier-readonly" value="${t.precio_inicial}" data-field="precio_inicial" disabled>
+          <input type="number" class="tier-cell tier-readonly" value="${t.precio_limite}" data-field="precio_limite" disabled>
+          <input type="number" class="tier-cell tier-readonly" value="${t.porcentaje}" disabled>
+          <input type="number" step="any" class="tier-cell tier-new" value="${t.porcentaje}" data-field="nuevo">
         </div>`
       )
       .join("");
 
     return `
       <div class="tier-table">
-        <div class="tier-row tier-head">
-          <span>${cfg.col1}</span>
-          <span>${cfg.col2}</span>
-          <span>${cfg.valueLabel.replace("Nuevo ", "")} Actual</span>
-          <span>${cfg.valueLabel}</span>
-        </div>
+        <div class="tier-row tier-4 tier-head">${cfg.heads.map((h) => `<span>${h}</span>`).join("")}</div>
         ${rows}
       </div>
-      <button type="button" class="btn-primary tier-save-btn" id="tierSaveBtn">Guardar</button>
     `;
   },
 
@@ -296,24 +247,49 @@ window.ModuleContent.precios = {
     const rows = charges
       .map(
         (c, i) => `
-        <div class="tier-row tier-row-extra" data-index="${i}">
+        <div class="tier-row tier-3 tier-row-extra" data-index="${i}">
           <input type="text" class="tier-cell tier-readonly" value="${this._esc(c.nombre)}" data-field="nombre" disabled>
-          <input type="number" step="any" class="tier-cell tier-readonly" value="${c.valor}" disabled>
-          <input type="number" step="any" class="tier-cell tier-new" value="${c.valor}" data-field="valor">
+          <input type="number" class="tier-cell tier-readonly" value="${c.valor}" disabled>
+          <input type="number" step="any" class="tier-cell tier-new" value="${c.valor}" data-field="nuevo">
         </div>`
       )
       .join("");
 
     return `
       <div class="tier-table tier-table-extra">
-        <div class="tier-row tier-head tier-row-extra">
-          <span>Nombre</span>
-          <span>Valor Actual</span>
-          <span>Nuevo Valor</span>
-        </div>
+        <div class="tier-row tier-3 tier-head tier-row-extra"><span>Nombre</span><span>Valor Actual</span><span>Nuevo Valor</span></div>
         ${rows}
       </div>
-      <button type="button" class="btn-primary tier-save-btn" id="tierSaveBtn">Guardar</button>
+    `;
+  },
+
+  // Logística: seguro + tarifa total por libra (1..110)
+  _logisticsHtml: function (lg, cfg) {
+    const sinConfigurar = cfg.rates.every((r) => !(r.total_usd > 0));
+    const rows = cfg.rates
+      .map(
+        (r) => `
+        <div class="tier-row tier-4" data-libras="${r.libras}">
+          <input type="text" class="tier-cell tier-readonly" value="${r.libras} lb" disabled>
+          <input type="text" class="tier-cell tier-readonly" value="${r.total_usd > 0 ? (r.total_usd / r.libras).toFixed(2) : "—"}" disabled>
+          <input type="number" class="tier-cell tier-readonly" value="${r.total_usd}" disabled>
+          <input type="number" step="any" min="0" class="tier-cell tier-new" value="${r.total_usd}" data-field="nuevo">
+        </div>`
+      )
+      .join("");
+
+    return `
+      ${sinConfigurar ? `<div class="config-note">Esta logística aún no tiene valores. Escribe el costo total por libra y guarda; mientras tanto no se calcula el precio por este medio.</div>` : ""}
+      <div class="logi-settings">
+        <label class="field-inline"><span>Seguro (% del valor declarado)</span>
+          <input type="number" step="any" min="0" id="seguroPct" value="${cfg.seguro_porcentaje}"></label>
+        <label class="field-inline"><span>Seguro mínimo (USD)</span>
+          <input type="number" step="any" min="0" id="seguroMin" value="${cfg.seguro_minimo_usd}"></label>
+      </div>
+      <div class="tier-table">
+        <div class="tier-row tier-4 tier-head"><span>Libras</span><span>USD por libra</span><span>Total Actual USD</span><span>Nuevo Total USD</span></div>
+        ${rows}
+      </div>
     `;
   },
 
@@ -330,32 +306,31 @@ window.ModuleContent.precios = {
           const rows = Array.from(document.querySelectorAll(".tier-row-extra:not(.tier-head)"));
           const charges = rows.map((row) => ({
             nombre: row.querySelector('[data-field="nombre"]').value,
-            valor: Number(row.querySelector('[data-field="valor"]').value),
+            valor: Number(row.querySelector('[data-field="nuevo"]').value),
           }));
           self._currentPack.extra_charges = await Api.saveExtraCharges(self._currentPackId, charges);
-        } else {
-          const rows = Array.from(document.querySelectorAll(".tier-table .tier-row:not(.tier-head):not(.tier-row-extra)"));
-          const isRange1 = kind === "ganancia" || kind === "impuestos";
-          const key1 = isRange1 ? "precio_inicial" : "peso_inicial";
-          const key2 = isRange1 ? "precio_limite" : "peso_limite";
-          const valueKey = kind === "ganancia" || kind === "impuestos" ? "porcentaje" : "precio_usd";
-
-          const tiers = rows.map((row) => ({
-            [key1]: Number(row.querySelector(`[data-field="${key1}"]`).value),
-            [key2]: Number(row.querySelector(`[data-field="${key2}"]`).value),
-            [valueKey]: Number(row.querySelector(`[data-field="${valueKey}"]`).value),
+        } else if (kind === "aguachica" || kind === "servientrega") {
+          const rates = Array.from(document.querySelectorAll(".tier-row[data-libras]")).map((row) => ({
+            libras: Number(row.dataset.libras),
+            total_usd: Number(row.querySelector('[data-field="nuevo"]').value) || 0,
           }));
-
-          if (kind === "ganancia") {
-            self._currentPack.profit_tiers = await Api.saveProfitTiers(self._currentPackId, tiers);
-          } else if (kind === "impuestos") {
-            self._currentPack.tax_tiers = await Api.saveTaxTiers(self._currentPackId, tiers);
-          } else if (kind === "envios_me") {
-            self._currentPack.shipping_tiers_mercado_envios = await Api.saveShippingTiers(self._currentPackId, "mercado_envios", tiers);
-          } else if (kind === "envios_custom") {
-            self._currentPack.shipping_tiers_custom = await Api.saveShippingTiers(self._currentPackId, "custom", tiers);
-          }
+          const data = {
+            seguro_porcentaje: Number(document.getElementById("seguroPct").value) || 0,
+            seguro_minimo_usd: Number(document.getElementById("seguroMin").value) || 0,
+            rates,
+          };
+          self._currentPack.logistics[kind] = await Api.saveLogistics(self._currentPackId, kind, data);
+        } else {
+          const rows = Array.from(document.querySelectorAll(".tier-table .tier-row:not(.tier-head)"));
+          const tiers = rows.map((row) => ({
+            precio_inicial: Number(row.querySelector('[data-field="precio_inicial"]').value),
+            precio_limite: Number(row.querySelector('[data-field="precio_limite"]').value),
+            porcentaje: Number(row.querySelector('[data-field="nuevo"]').value),
+          }));
+          if (kind === "ganancia") self._currentPack.profit_tiers = await Api.saveProfitTiers(self._currentPackId, tiers);
+          else self._currentPack.tax_tiers = await Api.saveTaxTiers(self._currentPackId, tiers);
         }
+        self._renderConfigTable(); // refresca las columnas "Actual" con lo guardado
         btn.textContent = "Guardado ✓";
         setTimeout(() => {
           btn.textContent = "Guardar";
@@ -379,7 +354,7 @@ window.ModuleContent.precios = {
 
       <div class="config-card">
         <h3 class="config-section-title">Calcular precio de venta manualmente</h3>
-        <p class="config-section-sub">Ingresa el costo en Amazon (USD) y el peso del producto para ver el precio sugerido con el pack seleccionado.</p>
+        <p class="config-section-sub">Ingresa el costo en Amazon (USD) y el peso. Se calcula por Aguachica y por Servientrega. Peso máximo: 110 lb.</p>
 
         <div class="manual-form">
           <label class="field-inline">
@@ -389,13 +364,6 @@ window.ModuleContent.precios = {
           <label class="field-inline">
             <span>Peso (lbs)</span>
             <input type="number" step="any" id="manualPeso" placeholder="Ej: 1">
-          </label>
-          <label class="field-inline">
-            <span>Tipo de envío</span>
-            <select id="manualEnvio">
-              <option value="mercado_envios">Mercado Envíos</option>
-              <option value="custom">Custom</option>
-            </select>
           </label>
           <button type="button" class="btn-primary" id="manualCalcBtn">Calcular</button>
         </div>
@@ -409,8 +377,8 @@ window.ModuleContent.precios = {
     document.getElementById("manualCalcBtn").addEventListener("click", async () => {
       const costoUsd = Number(document.getElementById("manualCosto").value);
       const pesoLbs = Number(document.getElementById("manualPeso").value);
-      const envioVariante = document.getElementById("manualEnvio").value;
       const resultEl = document.getElementById("manualResult");
+      resultEl.innerHTML = "";
 
       if (!this._currentPackId) {
         resultEl.innerHTML = `<div class="placeholder-card"><p>Selecciona un pack de precios primero.</p></div>`;
@@ -422,27 +390,108 @@ window.ModuleContent.precios = {
       }
 
       try {
-        const r = await Api.calcularPrecio(this._currentPackId, costoUsd, pesoLbs, envioVariante);
-        resultEl.innerHTML = `
-          <div class="result-card">
-            <div class="result-main">
-              <span>Precio de venta sugerido</span>
-              <strong>$ ${r.precioFinalUsd.toFixed(2)} USD</strong>
-            </div>
-            <div class="result-breakdown">
-              <div><span>Ganancia aplicada</span><span>${r.tramoGananciaPct}%</span></div>
-              <div><span>Envío</span><span>$ ${r.envioUsd.toFixed(2)}</span></div>
-              <div><span>Impuesto Amazon</span><span>${r.impuestoAmazonPct}%</span></div>
-              <div><span>Impuesto nacional</span><span>${r.impuestoNacionalPct}%</span></div>
-              <div><span>Comisión publicación</span><span>${r.comisionPubPct}%</span></div>
-              <div><span>Impuesto de venta</span><span>${r.impuestoVentaPct}%</span></div>
-            </div>
-          </div>
-        `;
+        const r = await Api.calcularPrecio(this._currentPackId, costoUsd, pesoLbs);
+        resultEl.innerHTML = this._priceResultHtml(r, null);
       } catch (err) {
-        resultEl.innerHTML = `<div class="placeholder-card"><p>${this._esc(err.message)}</p></div>`;
+        this._showCalcError(err, pesoLbs, resultEl);
       }
     });
+  },
+
+  _showCalcError: function (err, pesoLbs, resultEl) {
+    if (err.code === "PESO_EXCEDIDO") {
+      UI.alert({
+        title: "Producto demasiado pesado",
+        message: `${err.message} No se puede calcular ni publicar.`,
+        tone: "warning",
+      });
+    } else {
+      resultEl.innerHTML = `<div class="placeholder-card"><p>${this._esc(err.message)}</p></div>`;
+    }
+  },
+
+  // ---------- Formato ----------
+  _cop: function (n) {
+    return "$ " + Math.round(n).toLocaleString("es-CO") + " COP";
+  },
+  _usd: function (n) {
+    return "$ " + Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " USD";
+  },
+
+  // ---------- Resultado completo (lo usan "Calcular Precio" y "Calcular Precio Manual") ----------
+  _priceResultHtml: function (r, asin, producto) {
+    const self = this;
+    const ok = r.resultados;
+    const best = r.masEconomica;
+
+    const chips = [
+      `<span class="chip">Costo Amazon <b>${self._usd(r.costoUsd)}</b></span>`,
+      `<span class="chip">Peso <b>${r.pesoLbs} lb</b> (se cobra ${r.pesoFacturadoLbs})</span>`,
+      `<span class="chip">Dólar <b>$ ${Math.round(r.trm.aplicado).toLocaleString("es-CO")}</b> (${Math.round(r.trm.valor).toLocaleString("es-CO")} + ${Math.round(r.trm.margen).toLocaleString("es-CO")}) · ${self._esc(r.trm.fuente)}</span>`,
+      `<span class="chip">Disponibilidad <b>${r.diasStock} días</b> en stock</span>`,
+    ].join("");
+
+    const head = `
+      <div class="res-head">
+        <div class="res-head-main">
+          ${producto && producto.imagen ? `<img class="res-img" src="${self._esc(producto.imagen)}" alt="" onerror="this.remove()">` : ""}
+          <div class="res-text">
+          ${asin ? `<div class="res-asin">${self._esc(asin)}</div>` : ""}
+          ${producto && producto.titulo ? `<div class="res-title">${self._esc(producto.titulo)}</div>` : ""}
+          <div class="res-chips">${chips}</div>
+          </div>
+        </div>
+        ${asin ? `<a class="btn-primary res-amazon" href="https://www.amazon.com/dp/${encodeURIComponent(asin)}" target="_blank" rel="noopener">Ver producto en Amazon ↗</a>` : ""}
+      </div>`;
+
+    const hero = ok
+      .map((x) => {
+        const isBest = best === x.logistica;
+        if (x.estado !== "OK") {
+          return `<div class="hero-card hero-empty"><div class="hero-name">${self._esc(x.nombre)}</div><p class="result-empty">${self._esc(x.mensaje || "Sin tarifa")}</p></div>`;
+        }
+        return `
+          <div class="hero-card ${isBest ? "best" : ""}">
+            <div class="hero-name"><span>${self._esc(x.nombre)}</span>${isBest ? '<span class="result-badge">Más económico</span>' : ""}</div>
+            <div class="hero-price">${self._cop(x.precioFinalCop)}</div>
+            <div class="hero-sub">Envío ${self._usd(x.envioUsd)}</div>
+          </div>`;
+      })
+      .join("");
+
+    // Filas de la tabla: [etiqueta, valor común | [valor por logística]]
+    const common = (label, value, cls) => `<div class="bd-row ${cls || ""}"><span>${label}</span><span class="bd-common">${value}</span></div>`;
+    const per = (label, fn, cls) =>
+      `<div class="bd-row ${cls || ""}"><span>${label}</span>${ok.map((x) => `<span class="bd-val">${x.estado === "OK" ? fn(x) : "—"}</span>`).join("")}</div>`;
+    const section = (t) => `<div class="bd-section">${t}</div>`;
+
+    const table = `
+      <div class="breakdown">
+        <div class="bd-row bd-head"><span>Concepto</span>${ok.map((x) => `<span class="bd-val">${self._esc(x.nombre.split(" (")[0])}</span>`).join("")}</div>
+        ${section("Compra en Amazon")}
+        ${common("Costo en Amazon", self._usd(r.costoUsd))}
+        ${common(`Impuesto Amazon ${r.compra.impuestoAmazonPct}%`, self._usd(r.compra.impuestoAmazonUsd))}
+        ${common("Total compra en Amazon", self._usd(r.compra.totalCompraUsd), "bd-strong")}
+        ${section("Ganancia e importación")}
+        ${common(`Ganancia ${r.ganancia.porcentaje}%`, self._usd(r.ganancia.usd))}
+        ${common(`Impuesto de importación ${r.importacion.porcentaje}%`, self._usd(r.importacion.usd))}
+        ${section("Envío")}
+        ${per(`Envío (${r.pesoFacturadoLbs} lb, incluye seguro)`, (x) => self._usd(x.envioUsd))}
+        ${per("Subtotal", (x) => self._usd(x.subtotalUsd), "bd-strong")}
+        ${section("Conversión a pesos")}
+        ${common("Dólar del día (TRM)", "$ " + r.trm.valor.toLocaleString("es-CO", { maximumFractionDigits: 2 }) + " COP")}
+        ${common("Margen sobre el dólar", "+ $ " + r.trm.margen.toLocaleString("es-CO", { maximumFractionDigits: 2 }) + " COP")}
+        ${common("Dólar aplicado", "$ " + r.trm.aplicado.toLocaleString("es-CO", { maximumFractionDigits: 2 }) + " COP", "bd-strong")}
+        ${per("Total en pesos", (x) => self._cop(x.totalCop), "bd-strong")}
+        ${section("Mercado Libre")}
+        ${per("Costo reputación", (x) => self._cop(x.reputacionCop))}
+        ${per(`Comisión ${r.comisionPubPct}%`, (x) => self._cop(x.comisionCop))}
+        ${per(`Impuesto de venta ${r.impuestoVentaPct}%`, (x) => self._cop(x.impuestoVentaCop))}
+        ${per("Precio sin redondear", (x) => self._cop(x.precioSinRedondearCop))}
+        ${per("Precio final", (x) => self._cop(x.precioFinalCop), "bd-final")}
+      </div>`;
+
+    return `${head}<div class="hero-grid">${hero}</div>${table}`;
   },
 
   // ===========================================================
@@ -451,12 +500,62 @@ window.ModuleContent.precios = {
   _renderSkuTab: function () {
     const content = document.getElementById("priceTabContent");
     content.innerHTML = `
-      <div class="placeholder-card">
-        <div class="badge">Pendiente por construir</div>
-        <h3>Calcular Precio por SKU/ASIN</h3>
-        <p>Esta pestaña se activa cuando conectemos la búsqueda automática de productos en Amazon. Mientras tanto, usa "Calcular Precio Manual".</p>
+      ${this._renderPackSelector()}
+
+      <div class="config-card">
+        <div class="sku-form">
+          <label class="field-inline sku-field">
+            <span>SKU / ASIN de Amazon</span>
+            <input type="text" id="skuInput" placeholder="Ej: B0GVTPKJVT" maxlength="20" autocomplete="off">
+          </label>
+          <button type="button" class="btn-primary" id="skuCalcBtn">Calcular</button>
+        </div>
+
+        <div id="skuResult"></div>
       </div>
     `;
+
+    this._bindPackSelector();
+
+    const run = async () => {
+      const asin = document.getElementById("skuInput").value.trim().toUpperCase();
+      const out = document.getElementById("skuResult");
+      const btn = document.getElementById("skuCalcBtn");
+      out.innerHTML = "";
+
+      if (!this._currentPackId) {
+        out.innerHTML = `<div class="placeholder-card"><p>Selecciona un pack de precios primero.</p></div>`;
+        return;
+      }
+      if (!/^[A-Z0-9]{6,20}$/.test(asin)) {
+        out.innerHTML = `<div class="placeholder-card"><p>Escribe un SKU/ASIN válido (letras y números, ej: B0GVTPKJVT).</p></div>`;
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Buscando en Amazon…";
+      try {
+        const r = await Api.calcularPorSku(this._currentPackId, asin);
+        out.innerHTML = this._priceResultHtml(r, asin, r.producto);
+      } catch (err) {
+        if (err.code === "SIN_PESO" || err.code === "SIN_PRECIO") {
+          UI.alert({
+            title: err.code === "SIN_PESO" ? "Producto sin peso en Amazon" : "Producto sin precio en Amazon",
+            message: err.message + (err.producto && err.producto.titulo ? "\n\n" + err.producto.titulo : ""),
+            tone: "warning",
+          });
+        } else {
+          this._showCalcError(err, err.pesoLbs, out);
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Calcular";
+      }
+    };
+
+    document.getElementById("skuCalcBtn").addEventListener("click", run);
+    document.getElementById("skuInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") run();
+    });
   },
 
   _esc: function (str) {

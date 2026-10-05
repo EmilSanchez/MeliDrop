@@ -28,15 +28,23 @@ CREATE TABLE IF NOT EXISTS profit_tiers (
   posicion INTEGER NOT NULL DEFAULT 0
 );
 
--- Tramos de envío por peso (lbs). variante: 'mercado_envios' | 'custom'
-CREATE TABLE IF NOT EXISTS shipping_tiers (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+-- Logísticas por pack: 'aguachica' (Logística de CENTRIS) y 'servientrega' (Logística de GBX)
+-- Ajustes de seguro por logística (seguro = % del valor declarado, con mínimo en USD)
+CREATE TABLE IF NOT EXISTS logistics_settings (
   pack_id INTEGER NOT NULL REFERENCES price_packs(id) ON DELETE CASCADE,
-  variante TEXT NOT NULL CHECK (variante IN ('mercado_envios', 'custom')),
-  peso_inicial REAL NOT NULL,
-  peso_limite REAL NOT NULL,
-  precio_usd REAL NOT NULL,
-  posicion INTEGER NOT NULL DEFAULT 0
+  logistica TEXT NOT NULL CHECK (logistica IN ('aguachica', 'servientrega')),
+  seguro_porcentaje REAL NOT NULL DEFAULT 0,
+  seguro_minimo_usd REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (pack_id, logistica)
+);
+
+-- Tarifa por libra entera (1..110): total_usd = costo TOTAL de enviar esas libras
+CREATE TABLE IF NOT EXISTS logistics_rates (
+  pack_id INTEGER NOT NULL REFERENCES price_packs(id) ON DELETE CASCADE,
+  logistica TEXT NOT NULL CHECK (logistica IN ('aguachica', 'servientrega')),
+  libras INTEGER NOT NULL,
+  total_usd REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (pack_id, logistica, libras)
 );
 
 -- Tramos de impuestos nacionales por rango de precio (USD)
@@ -61,6 +69,5 @@ CREATE TABLE IF NOT EXISTS extra_charges (
 
 CREATE INDEX IF NOT EXISTS idx_packs_user ON price_packs(user_id);
 CREATE INDEX IF NOT EXISTS idx_profit_pack ON profit_tiers(pack_id);
-CREATE INDEX IF NOT EXISTS idx_shipping_pack ON shipping_tiers(pack_id);
 CREATE INDEX IF NOT EXISTS idx_tax_pack ON tax_tiers(pack_id);
 CREATE INDEX IF NOT EXISTS idx_extra_pack ON extra_charges(pack_id);

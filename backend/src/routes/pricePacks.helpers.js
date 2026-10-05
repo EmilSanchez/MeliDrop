@@ -1,4 +1,6 @@
 const db = require('../db');
+const { LOGISTICAS } = require('../pricing/logisticas');
+const { seedPack } = require('../db/seedLogistics');
 
 // Valores por defecto = exactamente los que se ven hoy en "Configuración Precios"
 // para que un usuario nuevo arranque con el mismo comportamiento del sistema actual.
@@ -8,18 +10,6 @@ const DEFAULT_PROFIT_TIERS = [
   { precio_inicial: 11, precio_limite: 40, porcentaje: 27 },
   { precio_inicial: 41, precio_limite: 200, porcentaje: 19 },
   { precio_inicial: 201, precio_limite: 10000, porcentaje: 15 },
-];
-
-const DEFAULT_SHIPPING_TIERS_ME = [
-  { peso_inicial: 0, peso_limite: 1, precio_usd: 4.2 },
-  { peso_inicial: 2, peso_limite: 15, precio_usd: 1.0 },
-  { peso_inicial: 15, peso_limite: 10000, precio_usd: 1.0 },
-];
-
-const DEFAULT_SHIPPING_TIERS_CUSTOM = [
-  { peso_inicial: 0, peso_limite: 1, precio_usd: 7 },
-  { peso_inicial: 2, peso_limite: 15, precio_usd: 5.04 },
-  { peso_inicial: 15, peso_limite: 10000, precio_usd: 1 },
 ];
 
 const DEFAULT_TAX_TIERS = [
@@ -34,7 +24,10 @@ const DEFAULT_EXTRA_CHARGES = [
   { nombre: 'Impuesto Amazon %', valor: 7 },
   { nombre: 'Impuesto Venta %', valor: 2 },
   { nombre: 'Dias de disponibilidad en stock', valor: 17 },
-  { nombre: 'Comision tipo de pub. %', valor: 12 },
+  { nombre: 'Comision tipo de pub. %', valor: 14 },
+  { nombre: 'Costo Reputacion COP', valor: 10900 },
+  { nombre: 'Margen sobre el dolar COP', valor: 100 },
+  { nombre: 'Dolar de respaldo COP', valor: 3300 },
 ];
 
 function createDefaultPack(userId, nombre = 'Precios Generales') {
@@ -50,16 +43,6 @@ function createDefaultPack(userId, nombre = 'Precios Generales') {
     insertProfit.run(packId, t.precio_inicial, t.precio_limite, t.porcentaje, i)
   );
 
-  const insertShipping = db.prepare(
-    'INSERT INTO shipping_tiers (pack_id, variante, peso_inicial, peso_limite, precio_usd, posicion) VALUES (?, ?, ?, ?, ?, ?)'
-  );
-  DEFAULT_SHIPPING_TIERS_ME.forEach((t, i) =>
-    insertShipping.run(packId, 'mercado_envios', t.peso_inicial, t.peso_limite, t.precio_usd, i)
-  );
-  DEFAULT_SHIPPING_TIERS_CUSTOM.forEach((t, i) =>
-    insertShipping.run(packId, 'custom', t.peso_inicial, t.peso_limite, t.precio_usd, i)
-  );
-
   const insertTax = db.prepare(
     'INSERT INTO tax_tiers (pack_id, precio_inicial, precio_limite, porcentaje, posicion) VALUES (?, ?, ?, ?, ?)'
   );
@@ -72,7 +55,35 @@ function createDefaultPack(userId, nombre = 'Precios Generales') {
   );
   DEFAULT_EXTRA_CHARGES.forEach((t, i) => insertExtra.run(packId, t.nombre, t.valor, i));
 
+  seedPack(db, packId);
+
   return packId;
 }
 
-module.exports = { createDefaultPack };
+// Pack completo con todas sus tablas (lo usan las rutas de packs y de cálculo)
+function fullPack(packId) {
+  const pack = db.prepare('SELECT * FROM price_packs WHERE id = ?').get(packId);
+  if (!pack) return null;
+  const logistics = {};
+  for (const lg of Object.keys(LOGISTICAS)) {
+    const st = db
+      .prepare('SELECT seguro_porcentaje, seguro_minimo_usd FROM logistics_settings WHERE pack_id = ? AND logistica = ?')
+      .get(packId, lg) || { seguro_porcentaje: 0, seguro_minimo_usd: 0 };
+    logistics[lg] = {
+      nombre: LOGISTICAS[lg].nombre,
+      ...st,
+      rates: db
+        .prepare('SELECT libras, total_usd FROM logistics_rates WHERE pack_id = ? AND logistica = ? ORDER BY libras')
+        .all(packId, lg),
+    };
+  }
+  return {
+    ...pack,
+    profit_tiers: db.prepare('SELECT * FROM profit_tiers WHERE pack_id = ? ORDER BY posicion').all(packId),
+    logistics,
+    tax_tiers: db.prepare('SELECT * FROM tax_tiers WHERE pack_id = ? ORDER BY posicion').all(packId),
+    extra_charges: db.prepare('SELECT * FROM extra_charges WHERE pack_id = ? ORDER BY posicion').all(packId),
+  };
+}
+
+module.exports = { createDefaultPack, fullPack, DEFAULT_EXTRA_CHARGES };
