@@ -675,7 +675,7 @@ body{
 /* ---- Configuración Precios: dos columnas ---- */
 .config-layout{
   display:grid;
-  grid-template-columns: 300px minmax(0,1fr);
+  grid-template-columns: minmax(0,1fr) 250px 250px;
   gap:16px;
   align-items:start;
 }
@@ -897,6 +897,11 @@ body{
 .bd-final{ background:#f2fbf5; font-weight:800; font-size:15px; border-bottom:none; }
 .bd-final > span:first-child{ color: var(--text-dark); }
 .bd-final .bd-val{ color: var(--green); }
+
+@media (max-width: 1100px){
+  .config-layout{ grid-template-columns: 1fr 1fr; }
+  .config-layout .config-main{ grid-column: 1 / -1; }
+}
 
 @media (max-width: 900px){
   .config-layout{ grid-template-columns: 1fr; }

@@ -16,7 +16,7 @@ window.ModuleContent.precios = {
   _packs: [],
   _currentPackId: null,
   _currentPack: null,
-  _activeTab: "config", // 'sku' | 'config' | 'manual'
+  _activeTab: "sku", // 'sku' | 'config' | 'manual'  (al abrir el módulo siempre empieza en "Calcular Precio")
   _activeConfig: "ganancia", // 'ganancia' | 'aguachica' | 'servientrega' | 'impuestos' | 'extras'
 
   render: function () {
@@ -27,8 +27,8 @@ window.ModuleContent.precios = {
       </div>
 
       <div class="price-tabs" id="priceTabs">
-        <button class="price-tab" data-tab="sku">Calcular Precio</button>
-        <button class="price-tab active" data-tab="config">Configuración Precios</button>
+        <button class="price-tab active" data-tab="sku">Calcular Precio</button>
+        <button class="price-tab" data-tab="config">Configuración Precios</button>
         <button class="price-tab" data-tab="manual">Calcular Precio Manual</button>
       </div>
 
@@ -43,6 +43,9 @@ window.ModuleContent.precios = {
       this._bindTabs();
       this._bound = true;
     }
+    // Cada vez que se abre el módulo, vuelve a la pestaña "Calcular Precio"
+    this._activeTab = "sku";
+    document.querySelectorAll(".price-tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === "sku"));
     this._loadPacks();
   },
 
@@ -160,25 +163,23 @@ window.ModuleContent.precios = {
 
     content.innerHTML = `
       <div class="config-layout">
-        <div class="config-side">
-          <div class="side-card">
-            ${this._renderPackSelector()}
-          </div>
-
-          <div class="side-card">
-            <span class="side-title">Configuraciones de ${this._esc(pack.nombre)}</span>
-            <div class="config-nav" id="configNav">
-              ${configOptions.map((o) => `<button type="button" class="config-nav-btn ${o.id === this._activeConfig ? "active" : ""}" data-config="${o.id}">${o.label}</button>`).join("")}
-            </div>
-          </div>
-        </div>
-
         <div class="config-card config-main">
           <div class="config-main-head">
             <h3 class="config-section-title">${active.label}</h3>
             <button type="button" class="btn-primary tier-save-btn" id="tierSaveBtn">Guardar</button>
           </div>
           <div id="configTableArea"></div>
+        </div>
+
+        <div class="side-card">
+          <span class="side-title">Configuraciones de ${this._esc(pack.nombre)}</span>
+          <div class="config-nav" id="configNav">
+            ${configOptions.map((o) => `<button type="button" class="config-nav-btn ${o.id === this._activeConfig ? "active" : ""}" data-config="${o.id}">${o.label}</button>`).join("")}
+          </div>
+        </div>
+
+        <div class="side-card">
+          ${this._renderPackSelector()}
         </div>
       </div>
     `;
